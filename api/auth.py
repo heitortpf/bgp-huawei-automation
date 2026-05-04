@@ -1,11 +1,11 @@
 import os
 from datetime import datetime, timedelta, timezone
 
+import bcrypt as _bcrypt
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.hash import bcrypt
 
 load_dotenv()
 
@@ -35,7 +35,7 @@ def verificar_credenciais(username: str, password: str) -> bool:
     admin_hash = os.getenv("ADMIN_PASSWORD_HASH", "")
     if username != admin_user or not admin_hash:
         return False
-    return bcrypt.verify(password, admin_hash)
+    return _bcrypt.checkpw(password.encode(), admin_hash.encode())
 
 
 async def get_current_user(
