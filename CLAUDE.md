@@ -62,7 +62,7 @@ JWT_EXPIRE_HOURS=8
 1. `validation.py` — collects all user input (ASNs, neighbor IP, client name, prefixes); offers automatic prefix lookup via `_oferecer_busca_prefixos` before falling back to manual entry
 2. `commands.py` — builds Huawei CLI commands (prefix-lists with 10/20/30… index spacing, route-policies, BGP neighbor config); automatically appends `greater-equal`/`less-equal` to each prefix-list entry (IPv4 max /24, IPv6 max /48)
 3. `irr.py` — two responsibilities: (a) optional WHOIS validation against whois.radb.net:43; (b) automatic ASN prefix lookup via RIPE Stat API (primary) with IRR/RADB socket fallback; includes subnet deduplication (`_filtrar_subredes`) to keep only aggregate blocks
-4. `router_io.py` — parses `routers.txt` (CSV: host,username,password,port) and handles router selection; reports the exact line number on parse errors
+4. `router_io.py` — parses `routers.txt` (CSV: host,username,password,port) and handles router selection; reports exact line number on parse errors. Safe I/O via `csv` module: `acrescentar_router()` appends a row, `remover_router()` filters and rewrites.
 5. `connector.py` — SSH lifecycle: TCP pre-check (5 s timeout) → backup current config → apply commands → collect verification output (`display bgp peer`, `display this`); accepts a `confirmar_existente: Callable[[str, str], bool]` callback so it has no UI dependency
 6. `report.py` — generates a timestamped PDF with SHA256 hashes of the PDF itself and `routers.txt` for audit compliance
 
@@ -80,9 +80,9 @@ All routes are under the `/api` prefix.
 - `auth.py` — JWT HS256 via `python-jose`; `bcrypt` for password verification; `get_current_user` FastAPI dependency injected in all endpoints
 - `schemas.py` — Pydantic v2 request/response models
 - `routers/auth.py` — `POST /api/auth/login`
-- `routers/sessao.py` — prefix lookup, preview, IRR validation, apply
-- `routers/roteadores.py` — inventory list and add
-- `routers/relatorios.py` — list and download PDF reports
+- `routers/sessao.py` — prefix lookup, preview, IRR validation, apply. `roteadores: None` = all routers; `roteadores: []` = HTTP 400. Returns `relatorio_nome` (filename only, not full path).
+- `routers/roteadores.py` — inventory CRUD; delegates all file I/O to `bgp/router_io.py`
+- `routers/relatorios.py` — list and download PDF reports; validates filename with `^relatorio_huawei_\d{8}_\d{6}\.pdf$`
 
 Blocking sync calls (`executar_bgp`, `buscar_prefixos_por_asn`) are wrapped in `asyncio.to_thread()`.
 
@@ -91,8 +91,9 @@ Blocking sync calls (`executar_bgp`, `buscar_prefixos_por_asn`) are wrapped in `
 - Vite + React 18 + React Router v6 + Axios
 - `src/api/client.js` — axios instance; injects `Authorization: Bearer` from localStorage; redirects to `/login` on 401
 - `src/context/AuthContext.jsx` — token state, `login()`, `logout()`
+- `src/utils/download.js` — shared `downloadBlob(blob, filename)` helper used by `CriarSessao` and `Relatorios`
 - Pages: `Login`, `CriarSessao` (main flow), `Roteadores`, `Relatorios`
-- CSS Modules with dark theme (variables in `src/index.css`)
+- CSS Modules with dark theme (variables in `src/index.css` only — not duplicated in `Layout.module.css`)
 
 **Output directories** (created at runtime, git-ignored):
 - `backups/` — per-router config backups taken before applying changes
