@@ -6,24 +6,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 BGP Huawei Automation Tool — a full-stack NOC tool for automating BGP session provisioning on Huawei NE8000 routers (NE8000-F1A/M4). It consists of three layers:
 
-1. **`bgp/` package** — core business logic: command generation, IRR/RADB validation, SSH execution, PDF report generation
-2. **`api/` package** — FastAPI REST backend exposing the `bgp/` logic, with JWT authentication
+1. **`backend/bgp/`** — core business logic: command generation, IRR/RADB validation, SSH execution, PDF report generation
+2. **`backend/api/`** — FastAPI REST backend exposing the `bgp/` logic, with JWT authentication
 3. **`frontend/`** — React 18 + Vite SPA for the web interface
 
-`main.py` is the original interactive CLI entry point (still functional). `script.py` is the original monolithic version kept for reference only.
+`backend/main.py` is the original interactive CLI entry point (still functional). `backend/script.py` is the original monolithic version kept for reference only.
+
+**Always `cd backend` before running Python commands** — relative paths in `config.py` (`routers.txt`, `backups/`, `logs/`) resolve from the working directory.
 
 ## Commands
 
 ```powershell
 # Install Python dependencies
+cd backend
 pip install -r requirements.txt
 
-# Run the interactive CLI (original)
-python main.py
-
-# Run the API server (port 8000)
+# Run the API server (port 8000) — always run from inside backend/
+cd backend
 python api_main.py
 # Swagger UI available at http://localhost:8000/docs
+
+# Run the interactive CLI (original)
+cd backend
+python main.py
 
 # Run the React frontend (port 5173, dev mode)
 cd frontend
@@ -31,15 +36,17 @@ npm install   # first time only
 npm run dev
 
 # Build frontend for production
-cd frontend && npm run build
+cd frontend
+npm run build
 ```
 
 ### First-time .env setup (required for the API)
 ```powershell
 # Generate bcrypt hash for your password
+cd backend
 python -c "import bcrypt; print(bcrypt.hashpw(b'your_password', bcrypt.gensalt()).decode())"
 ```
-Create `.env` in the project root (already in `.gitignore`):
+Create `backend/.env` (already in `.gitignore`):
 ```
 JWT_SECRET=<random long string>
 ADMIN_USERNAME=admin
@@ -108,9 +115,9 @@ Set-Location "C:\PROJETO BGP"
 ```
 
 **Never commit:**
-- `.env` (JWT secret + admin password hash — already in `.gitignore`)
-- `routers.txt` (router credentials in plaintext — already in `.gitignore`)
-- `backups/`, `logs/`, `*.pdf`, `log_*.txt` (runtime output — already in `.gitignore`)
+- `backend/.env` (JWT secret + admin password hash — already in `.gitignore`)
+- `backend/routers.txt` (router credentials in plaintext — already in `.gitignore`)
+- `backend/backups/`, `backend/logs/`, `*.pdf`, `log_*.txt` (runtime output — already in `.gitignore`)
 - `frontend/node_modules/`, `frontend/dist/` (already in `.gitignore`)
 
 ## Key Conventions

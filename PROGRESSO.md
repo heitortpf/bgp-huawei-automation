@@ -13,10 +13,11 @@ O `script.py` original (759 linhas, monolítico) foi refatorado em pacote modula
 
 ```
 PROJETO BGP\
-├── main.py              ← ponto de entrada CLI
-├── requirements.txt
-├── script.py            ← original intacto (não apagar)
-└── bgp\
+├── backend\
+│   ├── main.py              ← ponto de entrada CLI
+│   ├── requirements.txt
+│   ├── script.py            ← original intacto (não apagar)
+│   └── bgp\
     ├── __init__.py
     ├── config.py        ← constantes (ARQUIVO_ROUTERS, EMPRESA, BACKUP_DIR...) — todos Path
     ├── exceptions.py    ← BgpAutomacaoError, IrrValidationError, RouterConnectionError,
@@ -91,6 +92,7 @@ api_main.py         ← python api_main.py → sobe em 0.0.0.0:8000
 
 #### Como rodar
 ```powershell
+cd backend
 python api_main.py   # → http://localhost:8000/docs (Swagger UI)
 ```
 
@@ -137,6 +139,7 @@ frontend\
 #### Como rodar (desenvolvimento)
 ```powershell
 # Terminal 1 — Backend
+cd backend
 python api_main.py
 
 # Terminal 2 — Frontend
@@ -144,7 +147,7 @@ cd frontend
 npm run dev      # → http://localhost:5173
 ```
 
-Login padrão configurado no `.env`: `admin` / `admin123` (altere antes de expor em rede).
+Login padrão configurado em `backend/.env`: `admin` / `admin123` (altere antes de expor em rede).
 
 ---
 
