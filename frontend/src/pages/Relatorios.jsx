@@ -8,7 +8,7 @@ export default function Relatorios() {
 
   useEffect(() => {
     api
-      .get("/relatorios/")
+      .get("/relatorios")
       .then(({ data }) => setFiles(data))
       .catch(() => setError("Não foi possível listar relatórios."));
   }, []);
