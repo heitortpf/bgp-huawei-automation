@@ -41,6 +41,24 @@ The `bgp/` package is the refactored modular core; `script.py` is the original m
 - `logs/` — application logs
 - `relatorio_huawei_*.pdf` — generated audit reports in project root
 
+## Git & GitHub
+
+Repository: https://github.com/heitortpf/bgp-huawei-automation
+
+**After every change to the project**, commit and push using the full Git path (git is not in Claude Code's PATH):
+
+```powershell
+$git = "C:\Program Files\Git\bin\git.exe"
+Set-Location "C:\PROJETO BGP"
+& $git add .
+& $git commit -m "<concise description of what changed>"
+& $git push
+```
+
+**Never commit:**
+- `routers.txt` (credentials in plaintext — already in `.gitignore`)
+- `backups/`, `logs/`, `*.pdf`, `log_*.txt` (runtime output — already in `.gitignore`)
+
 ## Key Conventions
 
 - Device type for netmiko is `huawei` (Huawei VRP OS).
