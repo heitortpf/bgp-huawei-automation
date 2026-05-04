@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 
 from bgp.models import BgpSessionConfig
@@ -65,7 +66,12 @@ async def aplicar_sessao(body: AplicarRequest, _: str = Depends(get_current_user
     cmds = build_huawei_commands(session)
 
     todos_routers = ler_routers_txt()
-    if body.roteadores:
+
+    if body.roteadores is None:
+        routers_selecionados = todos_routers
+    elif len(body.roteadores) == 0:
+        raise HTTPException(status_code=400, detail="Selecione ao menos um roteador.")
+    else:
         hosts_solicitados = set(body.roteadores)
         routers_selecionados = [r for r in todos_routers if r.host in hosts_solicitados]
         hosts_nao_encontrados = hosts_solicitados - {r.host for r in routers_selecionados}
@@ -74,40 +80,37 @@ async def aplicar_sessao(body: AplicarRequest, _: str = Depends(get_current_user
                 status_code=404,
                 detail=f"Roteadores não encontrados no inventário: {sorted(hosts_nao_encontrados)}",
             )
-    else:
-        routers_selecionados = todos_routers
-
-    aplicar_se_existir = body.aplicar_se_existir
-    confirmar_existente = lambda host, existing: aplicar_se_existir
 
     resultados = await asyncio.to_thread(
-        executar_bgp, routers_selecionados, session, cmds, confirmar_existente
+        executar_bgp,
+        routers_selecionados,
+        session,
+        cmds,
+        lambda _host, _existing: body.aplicar_se_existir,
     )
 
-    relatorio_path = None
+    relatorio_nome = None
     relatorio_sha256 = None
     if body.gerar_relatorio:
         pdf_path, pdf_hash, _ = await asyncio.to_thread(
             gerar_relatorio, resultados, ARQUIVO_ROUTERS
         )
-        relatorio_path = pdf_path
+        relatorio_nome = Path(pdf_path).name
         relatorio_sha256 = pdf_hash
 
-    resultados_resp = [
-        ExecutionResultResponse(
-            host=r.host,
-            status=r.status,
-            duracao_s=r.duracao_s,
-            backup_sha256=r.backup_sha256,
-            display_bgp_peer=r.display_bgp_peer,
-            bgp_display_this=r.bgp_display_this,
-            recorte_cliente=r.recorte_cliente,
-        )
-        for r in resultados
-    ]
-
     return AplicarResponse(
-        resultados=resultados_resp,
-        relatorio_path=relatorio_path,
+        resultados=[
+            ExecutionResultResponse(
+                host=r.host,
+                status=r.status,
+                duracao_s=r.duracao_s,
+                backup_sha256=r.backup_sha256,
+                display_bgp_peer=r.display_bgp_peer,
+                bgp_display_this=r.bgp_display_this,
+                recorte_cliente=r.recorte_cliente,
+            )
+            for r in resultados
+        ],
+        relatorio_nome=relatorio_nome,
         relatorio_sha256=relatorio_sha256,
     )

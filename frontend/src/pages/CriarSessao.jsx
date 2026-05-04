@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../api/client";
 import styles from "./Page.module.css";
+import { downloadBlob } from "../utils/download";
 
 const EMPTY_FORM = {
   local_as: "",
@@ -98,9 +99,8 @@ export default function CriarSessao() {
         gerar_relatorio: gerarRelatorio,
       });
       setResultados(data.resultados);
-      if (data.relatorio_path) {
-        const parts = data.relatorio_path.replace(/\\/g, "/").split("/");
-        setRelatorioPdf(parts[parts.length - 1]);
+      if (data.relatorio_nome) {
+        setRelatorioPdf(data.relatorio_nome);
       }
     } catch (err) {
       setError(err.response?.data?.detail ?? "Erro ao aplicar sessão.");
@@ -112,12 +112,7 @@ export default function CriarSessao() {
   async function handleDownloadPdf() {
     if (!relatorioPdf) return;
     const resp = await api.get(`/relatorios/${relatorioPdf}`, { responseType: "blob" });
-    const url = URL.createObjectURL(resp.data);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = relatorioPdf;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(resp.data, relatorioPdf);
   }
 
   function toggleRouter(host) {
@@ -166,8 +161,8 @@ export default function CriarSessao() {
 
       {/* Prefixos */}
       <div className={styles.card}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h3 className={styles.cardTitle} style={{ margin: 0 }}>Prefixos</h3>
+        <div className={styles.cardHeader}>
+          <h3 className={styles.cardTitle}>Prefixos</h3>
           <button className={styles.btnSecondary} onClick={handleBuscarPrefixos} disabled={!form.neighbor_as || loadingPrefixos}>
             {loadingPrefixos ? <><span className={styles.spinner} />Buscando…</> : "Buscar pelo AS"}
           </button>
@@ -207,8 +202,8 @@ export default function CriarSessao() {
 
       {/* Preview */}
       <div className={styles.card}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: preview ? 16 : 0 }}>
-          <h3 className={styles.cardTitle} style={{ margin: 0 }}>Preview de Comandos</h3>
+        <div className={styles.cardHeader}>
+          <h3 className={styles.cardTitle}>Preview de Comandos</h3>
           <button className={styles.btnSecondary} onClick={handlePreview} disabled={loadingPreview}>
             {loadingPreview ? <><span className={styles.spinner} />Gerando…</> : "Gerar Preview"}
           </button>

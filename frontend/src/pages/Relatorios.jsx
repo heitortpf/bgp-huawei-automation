@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../api/client";
 import styles from "./Page.module.css";
+import { downloadBlob } from "../utils/download";
 
 export default function Relatorios() {
   const [files, setFiles] = useState([]);
@@ -16,12 +17,7 @@ export default function Relatorios() {
   async function handleDownload(nome) {
     try {
       const resp = await api.get(`/relatorios/${nome}`, { responseType: "blob" });
-      const url = URL.createObjectURL(resp.data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = nome;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(resp.data, nome);
     } catch {
       setError(`Erro ao baixar ${nome}.`);
     }

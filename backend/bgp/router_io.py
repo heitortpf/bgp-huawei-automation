@@ -1,3 +1,4 @@
+import csv
 import logging
 from pathlib import Path
 from bgp.config import ARQUIVO_ROUTERS
@@ -10,23 +11,16 @@ logger = logging.getLogger(__name__)
 def ler_routers_txt(path: Path | str = ARQUIVO_ROUTERS) -> list[RouterConfig]:
     routers: list[RouterConfig] = []
     try:
-        with open(path, encoding="utf-8") as f:
-            for num, linha in enumerate(f, start=1):
-                linha = linha.strip()
-                if not linha or linha.startswith("#"):
+        with open(path, newline="", encoding="utf-8") as f:
+            for num, row in enumerate(csv.reader(f), start=1):
+                if not row or row[0].startswith("#"):
                     continue
-                try:
-                    host, user, pwd, port = linha.split(",")
-                except ValueError as e:
+                if len(row) != 4:
                     raise RouterInventoryError(
-                        f"Erro ao ler '{path}', linha {num}: formato inválido ({e!r})"
-                    ) from e
-                routers.append(RouterConfig(
-                    host=host.strip(),
-                    username=user.strip(),
-                    password=pwd.strip(),
-                    port=int(port.strip()),
-                ))
+                        f"Erro ao ler '{path}', linha {num}: esperado 4 campos, encontrado {len(row)}"
+                    )
+                host, user, pwd, port = (c.strip() for c in row)
+                routers.append(RouterConfig(host=host, username=user, password=pwd, port=int(port)))
     except RouterInventoryError:
         raise
     except Exception as e:
@@ -36,6 +30,26 @@ def ler_routers_txt(path: Path | str = ARQUIVO_ROUTERS) -> list[RouterConfig]:
         raise RouterInventoryError(f"Nenhum roteador encontrado em '{path}'.")
 
     return routers
+
+
+def acrescentar_router(router: RouterConfig, path: Path | str = ARQUIVO_ROUTERS) -> None:
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        csv.writer(f).writerow([router.host, router.username, router.password, router.port])
+
+
+def remover_router(host: str, path: Path | str = ARQUIVO_ROUTERS) -> bool:
+    try:
+        routers = ler_routers_txt(path)
+    except RouterInventoryError:
+        return False
+    restantes = [r for r in routers if r.host != host]
+    if len(restantes) == len(routers):
+        return False
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        for r in restantes:
+            w.writerow([r.host, r.username, r.password, r.port])
+    return True
 
 
 def escolher_roteadores(routers: list[RouterConfig]) -> list[RouterConfig]:

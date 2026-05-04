@@ -59,7 +59,7 @@ class ValidarIrrResponse(BaseModel):
 
 class AplicarRequest(BaseModel):
     sessao: BgpSessionRequest
-    roteadores: list[str] = []
+    roteadores: list[str] | None = None
     aplicar_se_existir: bool = False
     gerar_relatorio: bool = True
 
@@ -76,7 +76,7 @@ class ExecutionResultResponse(BaseModel):
 
 class AplicarResponse(BaseModel):
     resultados: list[ExecutionResultResponse]
-    relatorio_path: str | None = None
+    relatorio_nome: str | None = None
     relatorio_sha256: str | None = None
 
 

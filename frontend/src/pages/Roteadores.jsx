@@ -79,8 +79,7 @@ export default function Roteadores() {
                   <td>{r.port}</td>
                   <td>
                     <button
-                      className={styles.btnSm}
-                      style={{ borderColor: "var(--error)", color: "var(--error)", background: "none" }}
+                      className={styles.btnDelete}
                       onClick={() => handleDelete(r.host)}
                       disabled={deleting === r.host}
                     >

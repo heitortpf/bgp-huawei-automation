@@ -297,3 +297,21 @@
 .routerCheckboxes input[type="checkbox"] {
   accent-color: var(--accent);
 }
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.btnDelete {
+  composes: btnSm;
+  background: none;
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.btnDelete:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.1);
+}
