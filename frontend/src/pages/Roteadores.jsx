@@ -7,6 +7,7 @@ export default function Roteadores() {
   const [form, setForm] = useState({ host: "", username: "", password: "", port: "22" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(null);
 
   async function load() {
     try {
@@ -21,6 +22,20 @@ export default function Roteadores() {
 
   function handleChange(e) {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  }
+
+  async function handleDelete(host) {
+    if (!window.confirm(`Remover o roteador "${host}"?`)) return;
+    setDeleting(host);
+    setError("");
+    try {
+      await api.delete(`/roteadores/${encodeURIComponent(host)}`);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.detail ?? "Erro ao remover roteador.");
+    } finally {
+      setDeleting(null);
+    }
   }
 
   async function handleAdd(e) {
@@ -53,6 +68,7 @@ export default function Roteadores() {
                 <th>Host</th>
                 <th>Usuário</th>
                 <th>Porta</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -61,6 +77,16 @@ export default function Roteadores() {
                   <td>{r.host}</td>
                   <td>{r.username}</td>
                   <td>{r.port}</td>
+                  <td>
+                    <button
+                      className={styles.btnSm}
+                      style={{ borderColor: "var(--error)", color: "var(--error)", background: "none" }}
+                      onClick={() => handleDelete(r.host)}
+                      disabled={deleting === r.host}
+                    >
+                      {deleting === r.host ? "Removendo…" : "Excluir"}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

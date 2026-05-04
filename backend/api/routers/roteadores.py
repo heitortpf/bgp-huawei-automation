@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from bgp.router_io import ler_routers_txt
 from bgp.config import ARQUIVO_ROUTERS
@@ -19,3 +19,14 @@ async def adicionar_roteador(body: RouterIn, _: str = Depends(get_current_user))
     with open(ARQUIVO_ROUTERS, "a", encoding="utf-8") as f:
         f.write(f"{body.host},{body.username},{body.password},{body.port}\n")
     return RouterOut(host=body.host, username=body.username, port=body.port)
+
+
+@router.delete("/{host}", status_code=204)
+async def remover_roteador(host: str, _: str = Depends(get_current_user)) -> None:
+    routers = ler_routers_txt()
+    restantes = [r for r in routers if r.host != host]
+    if len(restantes) == len(routers):
+        raise HTTPException(status_code=404, detail=f"Roteador '{host}' não encontrado.")
+    with open(ARQUIVO_ROUTERS, "w", encoding="utf-8") as f:
+        for r in restantes:
+            f.write(f"{r.host},{r.username},{r.password},{r.port}\n")
