@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from bgp.models import BgpSessionConfig
 from bgp.commands import build_huawei_commands
@@ -9,6 +9,7 @@ from bgp.connector import executar_bgp
 from bgp.report import gerar_relatorio
 from bgp.config import ARQUIVO_ROUTERS
 from bgp.exceptions import IrrValidationError
+from api.auth import get_current_user
 
 from api.schemas import (
     PreviewRequest,
@@ -37,20 +38,20 @@ def _to_session_config(req) -> BgpSessionConfig:
 
 
 @router.get("/asn/{asn}/prefixos", response_model=PrefixosResponse, tags=["Prefixos"])
-async def get_prefixos_por_asn(asn: int) -> PrefixosResponse:
+async def get_prefixos_por_asn(asn: int, _: str = Depends(get_current_user)) -> PrefixosResponse:
     ipv4, ipv6 = await asyncio.to_thread(buscar_prefixos_por_asn, asn)
     return PrefixosResponse(ipv4=ipv4, ipv6=ipv6)
 
 
 @router.post("/preview", response_model=PreviewResponse)
-async def preview_sessao(body: PreviewRequest) -> PreviewResponse:
+async def preview_sessao(body: PreviewRequest, _: str = Depends(get_current_user)) -> PreviewResponse:
     session = _to_session_config(body)
     cmds = build_huawei_commands(session)
     return PreviewResponse(comandos=cmds)
 
 
 @router.post("/validar-irr", response_model=ValidarIrrResponse)
-async def validar_irr(body: ValidarIrrRequest) -> ValidarIrrResponse:
+async def validar_irr(body: ValidarIrrRequest, _: str = Depends(get_current_user)) -> ValidarIrrResponse:
     try:
         await asyncio.to_thread(validar_asn_prefixo, body.prefixos, body.asn_peer)
     except IrrValidationError:
@@ -59,7 +60,7 @@ async def validar_irr(body: ValidarIrrRequest) -> ValidarIrrResponse:
 
 
 @router.post("/aplicar", response_model=AplicarResponse)
-async def aplicar_sessao(body: AplicarRequest) -> AplicarResponse:
+async def aplicar_sessao(body: AplicarRequest, _: str = Depends(get_current_user)) -> AplicarResponse:
     session = _to_session_config(body)
     cmds = build_huawei_commands(session)
 
