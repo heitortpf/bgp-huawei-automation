@@ -12,7 +12,6 @@ from bgp.router_io import ler_routers_txt
 from bgp.connector import executar_bgp
 from bgp.report import gerar_relatorio
 from bgp.config import ARQUIVO_ROUTERS
-from bgp.exceptions import IrrValidationError
 from bgp.db import salvar_sessao
 from api.auth import get_current_user
 
@@ -74,10 +73,7 @@ async def preview_sessao(body: PreviewRequest, _: str = Depends(get_current_user
 
 @router.post("/validar-irr", response_model=ValidarIrrResponse)
 async def validar_irr(body: ValidarIrrRequest, _: str = Depends(get_current_user)) -> ValidarIrrResponse:
-    try:
-        await asyncio.to_thread(validar_asn_prefixo, body.prefixos, body.asn_peer)
-    except IrrValidationError:
-        raise
+    await asyncio.to_thread(validar_asn_prefixo, body.prefixos, body.asn_peer)
     return ValidarIrrResponse(ok=True)
 
 
@@ -130,7 +126,7 @@ async def aplicar_stream(body: AplicarRequest, _: str = Depends(get_current_user
     cmds = build_huawei_commands(session)
     routers_selecionados = _resolver_routers(body)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     queue: asyncio.Queue[dict | None] = asyncio.Queue()
 
     def on_progress(event: dict) -> None:

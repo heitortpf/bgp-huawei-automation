@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../api/client";
 import styles from "./Page.module.css";
 import { downloadBlob } from "../utils/download";
@@ -27,6 +27,8 @@ export default function CriarSessao() {
   const [aplicarSeExistir, setAplicarSeExistir] = useState(false);
   const [gerarRelatorio, setGerarRelatorio] = useState(true);
 
+  const abortRef = useRef(null);
+
   const [loadingPrefixos, setLoadingPrefixos] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [loadingAplicar, setLoadingAplicar] = useState(false);
@@ -38,10 +40,14 @@ export default function CriarSessao() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
     api.get("/roteadores").then(({ data }) => {
       setRouters(data);
       setSelectedRouters(data.map((r) => r.host));
-    });
+    }).catch(() => setError("Erro ao carregar roteadores."));
   }, []);
 
   function handleChange(e) {
@@ -93,6 +99,8 @@ export default function CriarSessao() {
     setRelatorioPdf(null);
     setLog([]);
     setLoadingAplicar(true);
+    const abortController = new AbortController();
+    abortRef.current = abortController;
     try {
       const resp = await fetch("/api/sessao/aplicar-stream", {
         method: "POST",
@@ -100,6 +108,7 @@ export default function CriarSessao() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${localStorage.getItem("token")}`,
         },
+        signal: abortController.signal,
         body: JSON.stringify({
           sessao: buildSession(),
           roteadores: selectedRouters,
@@ -135,6 +144,7 @@ export default function CriarSessao() {
         }
       }
     } catch (err) {
+      if (err.name === "AbortError") return;
       setError(err.message ?? "Erro ao aplicar sessão.");
     } finally {
       setLoadingAplicar(false);
@@ -143,8 +153,12 @@ export default function CriarSessao() {
 
   async function handleDownloadPdf() {
     if (!relatorioPdf) return;
-    const resp = await api.get(`/relatorios/${relatorioPdf}`, { responseType: "blob" });
-    downloadBlob(resp.data, relatorioPdf);
+    try {
+      const resp = await api.get(`/relatorios/${relatorioPdf}`, { responseType: "blob" });
+      downloadBlob(resp.data, relatorioPdf);
+    } catch {
+      setError("Erro ao baixar o relatório PDF.");
+    }
   }
 
   function toggleRouter(host) {
@@ -311,7 +325,7 @@ export default function CriarSessao() {
                 <tr key={r.host}>
                   <td>{r.host}</td>
                   <td>{statusTag(r.status)}</td>
-                  <td>{r.duracao_s.toFixed(1)}s</td>
+                  <td>{r.duracao_s?.toFixed(1) ?? "-"}s</td>
                   <td style={{ fontFamily: "monospace", fontSize: 11 }}>{r.backup_sha256}</td>
                 </tr>
               ))}

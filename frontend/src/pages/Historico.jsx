@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import api from "../api/client";
 import styles from "./Page.module.css";
 import { downloadBlob } from "../utils/download";
@@ -67,8 +67,8 @@ export default function Historico() {
             </thead>
             <tbody>
               {historico.map((s) => (
-                <>
-                  <tr key={s.id} style={{ cursor: "pointer" }} onClick={() => toggleExpandir(s.id)}>
+                <React.Fragment key={s.id}>
+                  <tr style={{ cursor: "pointer" }} onClick={() => toggleExpandir(s.id)}>
                     <td>{formatTs(s.timestamp)}</td>
                     <td>{s.nome_cliente}</td>
                     <td>
@@ -117,7 +117,7 @@ export default function Historico() {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </tbody>
           </table>

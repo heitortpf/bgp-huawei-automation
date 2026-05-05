@@ -125,6 +125,7 @@ def _executar_em_roteador(
     _emit(on_progress, {"type": "progress", "host": router.host, "step": "tcp_check",
                         "msg": f"TCP {router.host}:{router.port} → OK"})
 
+    conn = None
     try:
         logger.info(f"Conectando ao roteador {router.host}...")
         conn = ConnectHandler(
@@ -177,6 +178,11 @@ def _executar_em_roteador(
                             "msg": f"BGP peer: {bgp_status}"})
 
     except Exception as e:
+        if conn is not None:
+            try:
+                conn.disconnect()
+            except Exception:
+                pass
         resultado.status = f"ERRO: {e}"
         resultado.duracao_s = round(time.time() - inicio, 2)
         logger.error(f"Erro em {router.host}: {e}")

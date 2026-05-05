@@ -1,8 +1,11 @@
 import dataclasses
 import json
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _DB_PATH = Path(__file__).resolve().parent.parent / "historico.db"
 
@@ -28,15 +31,18 @@ def salvar_sessao(sessao, routers, resultados, relatorio_nome: str | None) -> No
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     roteadores_json = json.dumps([r.host for r in routers], ensure_ascii=False)
     resultados_json = json.dumps([dataclasses.asdict(r) for r in resultados], ensure_ascii=False)
-    with sqlite3.connect(_DB_PATH) as con:
-        con.execute(
-            """INSERT INTO sessions
-               (timestamp, nome_cliente, neighbor_ip, local_as, neighbor_as,
-                roteadores, resultados, relatorio_nome)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (ts, sessao.nome_cliente, sessao.neighbor_ip, sessao.local_as,
-             sessao.neighbor_as, roteadores_json, resultados_json, relatorio_nome),
-        )
+    try:
+        with sqlite3.connect(_DB_PATH) as con:
+            con.execute(
+                """INSERT INTO sessions
+                   (timestamp, nome_cliente, neighbor_ip, local_as, neighbor_as,
+                    roteadores, resultados, relatorio_nome)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (ts, sessao.nome_cliente, sessao.neighbor_ip, sessao.local_as,
+                 sessao.neighbor_as, roteadores_json, resultados_json, relatorio_nome),
+            )
+    except Exception as e:
+        logger.error("Falha ao salvar sessão no histórico: %s", e)
 
 
 def listar_sessoes(limit: int = 100) -> list[dict]:
