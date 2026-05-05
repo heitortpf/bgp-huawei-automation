@@ -66,18 +66,22 @@ api\
 ├── __init__.py
 ├── app.py          ← instância FastAPI, CORSMiddleware, exception handlers, routers
 ├── auth.py         ← JWT HS256 (python-jose), verificação bcrypt, dependency get_current_user
-├── schemas.py      ← modelos Pydantic v2 (request + response)
+├── schemas.py      ← modelos Pydantic v2 (request + response + HistoricoItemResponse)
 └── routers\
     ├── auth.py       ← POST /api/auth/login
-    ├── sessao.py     ← GET /api/sessao/asn/{asn}/prefixos
+    ├── sessao.py     ← GET  /api/sessao/asn/{asn}/prefixos
     │                    POST /api/sessao/preview
     │                    POST /api/sessao/validar-irr
     │                    POST /api/sessao/aplicar
-    ├── roteadores.py ← GET /api/roteadores
-    │                    POST /api/roteadores
-    └── relatorios.py ← GET /api/relatorios (lista PDFs)
-                         GET /api/relatorios/{nome} (download)
-api_main.py         ← python api_main.py → sobe em 0.0.0.0:8000
+    │                    POST /api/sessao/aplicar-stream  ← SSE (Fase 5)
+    ├── roteadores.py ← GET    /api/roteadores
+    │                    POST   /api/roteadores
+    │                    DELETE /api/roteadores/{host}
+    ├── relatorios.py ← GET /api/relatorios (lista PDFs)
+    │                    GET /api/relatorios/{nome} (download)
+    └── historico.py  ← GET /api/historico          ← Fase 5
+                         GET /api/historico/{id}
+api_main.py         ← python api_main.py → sobe em 0.0.0.0:8000; chama init_db()
 ```
 
 #### Detalhes de implementação
@@ -85,16 +89,10 @@ api_main.py         ← python api_main.py → sobe em 0.0.0.0:8000
 |---|---|
 | Autenticação | JWT HS256, expiração configurável (padrão 8h), senha com bcrypt |
 | Proteção | Todos os endpoints exigem `Authorization: Bearer <token>` |
-| Operações síncronas | `executar_bgp()` e `buscar_prefixos_por_asn()` chamados via `asyncio.to_thread()` |
+| Operações síncronas | `executar_bgp()`, `buscar_prefixos_por_asn()`, `salvar_sessao()` chamados via `asyncio.to_thread()` |
 | CORS | Origens liberadas: `localhost:5173` (Vite dev) e `localhost:4173` (Vite preview) |
 | Exception mapping | `IrrValidationError`→422, `RouterConnectionError`→503, `RouterInventoryError`→500 |
 | Credenciais | `.env` com `JWT_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`, `JWT_EXPIRE_HOURS` |
-
-#### Como rodar
-```powershell
-cd backend
-python api_main.py   # → http://localhost:8000/docs (Swagger UI)
-```
 
 ---
 
@@ -115,39 +113,83 @@ frontend\
     │   └── client.js       ← axios + interceptor Bearer + redirect 401
     ├── context\
     │   └── AuthContext.jsx ← token em localStorage, login/logout
+    ├── utils\
+    │   └── download.js     ← downloadBlob(blob, filename) compartilhado
     ├── components\
-    │   ├── Layout.jsx          ← navbar + links + botão logout
+    │   ├── Layout.jsx          ← navbar + links (Nova Sessão, Roteadores, Histórico, Relatórios) + logout
     │   ├── Layout.module.css
     │   └── PrivateRoute.jsx    ← redirect /login se sem token
     └── pages\
         ├── Login.jsx           ← POST /api/auth/login
         ├── Login.module.css
-        ├── CriarSessao.jsx     ← fluxo principal (ver abaixo)
-        ├── Roteadores.jsx      ← GET/POST /api/roteadores
+        ├── CriarSessao.jsx     ← fluxo principal com painel de log SSE
+        ├── Roteadores.jsx      ← GET/POST/DELETE /api/roteadores
         ├── Relatorios.jsx      ← lista + download de PDFs
+        ├── Historico.jsx       ← tabela expansível de sessões + download PDF  ← Fase 5
         └── Page.module.css     ← CSS compartilhado entre páginas
 ```
 
-#### Fluxo da página Criar Sessão
+#### Fluxo da página Criar Sessão (com SSE)
 1. Preencher Local AS, Neighbor IP, Neighbor AS, Nome Cliente
 2. Botão **"Buscar pelo AS"** → `GET /api/sessao/asn/{neighbor_as}/prefixos` → auto-preenche listas IPv4/IPv6
 3. Botão **"Gerar Preview"** → `POST /api/sessao/preview` → exibe comandos Huawei gerados
 4. Selecionar roteadores (checkboxes) + toggles "Aplicar se já existir" / "Gerar relatório PDF"
-5. Botão **"Aplicar nos Roteadores"** → `POST /api/sessao/aplicar` → tabela de resultados por roteador
+5. Botão **"Aplicar nos Roteadores"** → `POST /api/sessao/aplicar-stream` → painel de log ao vivo por etapa (TCP, SSH, backup, comandos, BGP peer) → tabela de resultados ao final
 6. Botão **"Baixar PDF"** aparece se relatório foi gerado
 
-#### Como rodar (desenvolvimento)
-```powershell
-# Terminal 1 — Backend
-cd backend
-python api_main.py
+---
 
-# Terminal 2 — Frontend
-cd frontend
-npm run dev      # → http://localhost:5173
-```
+### Fase 4 — Refatoração e limpeza técnica (CONCLUÍDA)
 
-Login padrão configurado em `backend/.env`: `admin` / `admin123` (altere antes de expor em rede).
+| Arquivo | Mudança |
+|---|---|
+| `router_io.py` | I/O via módulo `csv` — sem CSV injection; `acrescentar_router()` e `remover_router()` |
+| `roteadores.py` | Delega todo I/O ao `router_io`; erros viram HTTP exceptions adequadas; endpoint DELETE |
+| `sessao.py` | `roteadores: None` = todos, `[]` = HTTP 400; retorna `relatorio_nome` (só o filename) |
+| `schemas.py` | `roteadores: list[str] | None = None`; `relatorio_nome` no lugar de `relatorio_path` |
+| `relatorios.py` | Validação por regex `^relatorio_huawei_\d{8}_\d{6}\.pdf$` |
+| `Layout.module.css` | Bloco `:root`/`*`/`body` duplicado removido (fonte única: `index.css`) |
+| `Page.module.css` | Classes `.cardHeader` e `.btnDelete` adicionadas |
+| `utils/download.js` | Helper `downloadBlob` extraído e compartilhado |
+| `CriarSessao.jsx`, `Relatorios.jsx`, `Roteadores.jsx` | Sem estilos inline, sem lógica de blob duplicada |
+
+---
+
+### Fase 5 — SSE + Histórico SQLite + Testes Automatizados (CONCLUÍDA)
+
+#### A — Testes automatizados (`backend/tests/`)
+- `requirements-dev.txt`: pytest + pytest-cov + httpx
+- `conftest.py`: fixture `client` (TestClient + override de auth JWT), fixture `tmp_routers_file`
+- `test_commands.py`: 9 testes de funções puras (`_ge_le_suffix`, `build_huawei_commands`)
+- `test_irr.py`: 8 testes — `_filtrar_subredes` + mocks de rede RIPE/IRR socket
+- `test_api.py`: 13 testes de integração — login, preview, CRUD roteadores, edge cases do aplicar
+- **30 testes passando** — rodar com `python -m pytest tests/ -q` dentro de `backend/`
+
+#### B — SSE: feedback em tempo real
+- `connector.py`: parâmetro `on_progress: Callable[[dict], None] | None` + helper `_emit()`; emite 5 eventos por roteador (tcp_check, ssh_connected, backup_done, commands_sent, verification_done) + evento `result` ao final de cada roteador
+- `sessao.py`: novo endpoint `POST /api/sessao/aplicar-stream` — bridge `asyncio.Queue` entre callback síncrono do threadpool e gerador assíncrono do `StreamingResponse`; usa `asyncio.get_running_loop()` (não `get_event_loop()`)
+- `CriarSessao.jsx`: `handleAplicar` usa `fetch()` + `ReadableStream` (POST com headers — `EventSource` é GET-only); painel de log `.logPanel` aparece durante a execução; `AbortController` cancela o stream no unmount
+
+#### C — Histórico de sessões (SQLite)
+- `bgp/db.py`: SQLite stdlib — `_DB_PATH = backend/historico.db`; `init_db()`, `salvar_sessao()`, `listar_sessoes(limit=100)`, `buscar_sessao(id)`, `_row_to_dict()` (deserializa JSON)
+- `api_main.py`: chama `init_db()` antes de subir o uvicorn
+- `sessao.py`: `salvar_sessao()` chamado em `asyncio.to_thread()` ao final de `/aplicar` e `/aplicar-stream`; falha no DB não derruba o endpoint (swallow com log)
+- `schemas.py`: `HistoricoItemResponse` adicionado
+- `routers/historico.py`: `GET /api/historico` e `GET /api/historico/{id}` com autenticação JWT
+- `Historico.jsx`: tabela com linhas expansíveis (estado `Set`); mostra status resumido (X/N OK), detalhes por roteador, link de download do PDF se houver
+- `Layout.jsx` + `App.jsx`: link "Histórico" na navbar e rota `/historico`
+
+---
+
+### Otimização pós-Fase 5 (CONCLUÍDA — commit afc24b7 / aa8094c)
+
+| Arquivo | Correção |
+|---|---|
+| `connector.py` | Fix vazamento de conexão SSH: `conn = None` antes do try; `conn.disconnect()` no except |
+| `sessao.py` | `asyncio.get_event_loop()` → `asyncio.get_running_loop()`; remoção de try/except morto em `validar_irr` |
+| `db.py` | Adicionado logging; `salvar_sessao` envolto em try/except — falha no DB não derruba `/aplicar` |
+| `Historico.jsx` | `<>` → `<React.Fragment key={s.id}>` no `.map()` (fix React reconciliation warning) |
+| `CriarSessao.jsx` | `.catch` no `useEffect` de roteadores; try/catch no `handleDownloadPdf`; `r.duracao_s?.toFixed(1) ?? "-"` (optional chain); `AbortController` para cancelar stream no unmount |
 
 ---
 
@@ -160,5 +202,10 @@ Login padrão configurado em `backend/.env`: `admin` / `admin123` (altere antes 
 - [x] Fase 2 — Backend FastAPI com todos os endpoints
 - [x] Autenticação JWT (python-jose + bcrypt)
 - [x] Fase 3 — Interface Web React (Vite, React Router, Axios)
-- [ ] Testes automatizados (pytest para `bgp/` + testes de integração da API)
+- [x] Fase 4 — Refatoração técnica (csv, regex, download helper, CSS)
+- [x] Fase 5A — Testes automatizados (30 testes passando)
+- [x] Fase 5B — SSE: painel de log ao vivo durante aplicação
+- [x] Fase 5C — Histórico de sessões SQLite com página na UI
+- [x] Otimização: connection leak, AbortController, React.Fragment key, error handling
 - [ ] Segurança de produção (HTTPS, credenciais de roteadores fora de texto plano)
+- [ ] Paginação no histórico (hoje: limit=100 fixo)
