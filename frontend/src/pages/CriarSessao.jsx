@@ -34,6 +34,7 @@ export default function CriarSessao() {
   const [preview, setPreview] = useState(null);
   const [resultados, setResultados] = useState(null);
   const [relatorioPdf, setRelatorioPdf] = useState(null);
+  const [log, setLog] = useState([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -90,20 +91,51 @@ export default function CriarSessao() {
     setError("");
     setResultados(null);
     setRelatorioPdf(null);
+    setLog([]);
     setLoadingAplicar(true);
     try {
-      const { data } = await api.post("/sessao/aplicar", {
-        sessao: buildSession(),
-        roteadores: selectedRouters,
-        aplicar_se_existir: aplicarSeExistir,
-        gerar_relatorio: gerarRelatorio,
+      const resp = await fetch("/api/sessao/aplicar-stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          sessao: buildSession(),
+          roteadores: selectedRouters,
+          aplicar_se_existir: aplicarSeExistir,
+          gerar_relatorio: gerarRelatorio,
+        }),
       });
-      setResultados(data.resultados);
-      if (data.relatorio_nome) {
-        setRelatorioPdf(data.relatorio_nome);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail ?? "Erro ao aplicar sessão.");
+      }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop();
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data: ")) continue;
+          const event = JSON.parse(line.slice(6));
+          if (event.type === "progress")
+            setLog((l) => [...l, `[${event.host}] ${event.msg}`]);
+          if (event.type === "result")
+            setLog((l) => [...l, `[${event.host}] → ${event.status} (${event.duracao_s}s)`]);
+          if (event.type === "done") {
+            setResultados(event.resultados);
+            if (event.relatorio_nome) setRelatorioPdf(event.relatorio_nome);
+          }
+        }
       }
     } catch (err) {
-      setError(err.response?.data?.detail ?? "Erro ao aplicar sessão.");
+      setError(err.message ?? "Erro ao aplicar sessão.");
     } finally {
       setLoadingAplicar(false);
     }
@@ -251,6 +283,15 @@ export default function CriarSessao() {
           </button>
         )}
       </div>
+
+      {/* Log em tempo real */}
+      {loadingAplicar && (
+        <div className={styles.logPanel}>
+          {log.length === 0
+            ? <span className={styles.muted}>Conectando…</span>
+            : log.map((l, i) => <div key={i}>{l}</div>)}
+        </div>
+      )}
 
       {/* Resultados */}
       {resultados && (

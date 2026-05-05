@@ -99,11 +99,17 @@ def _coletar_recorte_cliente(conn, session: BgpSessionConfig) -> str:
     return _truncate("\n\n".join(partes) if partes else "(nada encontrado no recorte)")
 
 
+def _emit(on_progress: Callable[[dict], None] | None, event: dict) -> None:
+    if on_progress:
+        on_progress(event)
+
+
 def _executar_em_roteador(
     router: RouterConfig,
     session: BgpSessionConfig,
     cmds: list[str],
     confirmar_existente: Callable[[str, str], bool],
+    on_progress: Callable[[dict], None] | None = None,
 ) -> ExecutionResult:
     inicio = time.time()
     resultado = ExecutionResult(host=router.host, status="ERRO", duracao_s=0.0)
@@ -112,7 +118,12 @@ def _executar_em_roteador(
         resultado.status = f"ERRO: {router.host}:{router.port} inacessível (TCP)"
         resultado.duracao_s = round(time.time() - inicio, 2)
         logger.error(resultado.status)
+        _emit(on_progress, {"type": "progress", "host": router.host, "step": "tcp_check",
+                            "msg": f"TCP {router.host}:{router.port} → FALHOU"})
         return resultado
+
+    _emit(on_progress, {"type": "progress", "host": router.host, "step": "tcp_check",
+                        "msg": f"TCP {router.host}:{router.port} → OK"})
 
     try:
         logger.info(f"Conectando ao roteador {router.host}...")
@@ -125,6 +136,8 @@ def _executar_em_roteador(
             fast_cli=False,
         )
         logger.info(f"Conectado a {router.host}.")
+        _emit(on_progress, {"type": "progress", "host": router.host, "step": "ssh_connected",
+                            "msg": f"SSH conectado"})
 
         existente = checar_config_existente(conn, session)
         if not confirmar_existente(router.host, existente):
@@ -143,8 +156,12 @@ def _executar_em_roteador(
             resultado.backup_sha256 = sha256_file(backup_path)
             resultado.backup_size = filesize_bytes(backup_path)
         logger.info(f"Backup ({router.host}): {backup_path} | SHA256: {resultado.backup_sha256}")
+        _emit(on_progress, {"type": "progress", "host": router.host, "step": "backup_done",
+                            "msg": f"Backup salvo ({resultado.backup_size})"})
 
         conn.send_config_set(cmds)
+        _emit(on_progress, {"type": "progress", "host": router.host, "step": "commands_sent",
+                            "msg": "Comandos aplicados"})
 
         display_peer = _coletar_display_bgp_peer(conn, session.neighbor_ip)
         resultado.display_bgp_peer = display_peer
@@ -152,9 +169,12 @@ def _executar_em_roteador(
         resultado.recorte_cliente = _coletar_recorte_cliente(conn, session)
         conn.disconnect()
 
+        bgp_status = "Established" if "Established" in display_peer else "Não estabelecido"
         resultado.status = "SUCESSO (Established)" if "Established" in display_peer else "BGP NÃO ESTABELECIDO"
         resultado.duracao_s = round(time.time() - inicio, 2)
         logger.info(f"{router.host} -> {resultado.status} em {resultado.duracao_s}s")
+        _emit(on_progress, {"type": "progress", "host": router.host, "step": "verification_done",
+                            "msg": f"BGP peer: {bgp_status}"})
 
     except Exception as e:
         resultado.status = f"ERRO: {e}"
@@ -169,5 +189,12 @@ def executar_bgp(
     session: BgpSessionConfig,
     cmds: list[str],
     confirmar_existente: Callable[[str, str], bool],
+    on_progress: Callable[[dict], None] | None = None,
 ) -> list[ExecutionResult]:
-    return [_executar_em_roteador(r, session, cmds, confirmar_existente) for r in routers]
+    resultados = []
+    for r in routers:
+        res = _executar_em_roteador(r, session, cmds, confirmar_existente, on_progress)
+        resultados.append(res)
+        _emit(on_progress, {"type": "result", "host": res.host, "status": res.status,
+                            "duracao_s": res.duracao_s})
+    return resultados

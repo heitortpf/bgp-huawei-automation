@@ -315,3 +315,17 @@
 .btnDelete:hover:not(:disabled) {
   background: rgba(248, 113, 113, 0.1);
 }
+
+.logPanel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-family: "Consolas", "Fira Code", monospace;
+  font-size: 12px;
+  line-height: 1.8;
+  max-height: 240px;
+  overflow-y: auto;
+  color: var(--text-muted);
+  margin-top: 12px;
+}
