@@ -13,6 +13,7 @@ from bgp.connector import executar_bgp
 from bgp.report import gerar_relatorio
 from bgp.config import ARQUIVO_ROUTERS
 from bgp.exceptions import IrrValidationError
+from bgp.db import salvar_sessao
 from api.auth import get_current_user
 
 from api.schemas import (
@@ -103,6 +104,8 @@ async def aplicar_sessao(body: AplicarRequest, _: str = Depends(get_current_user
         relatorio_nome = Path(pdf_path).name
         relatorio_sha256 = pdf_hash
 
+    await asyncio.to_thread(salvar_sessao, body.sessao, routers_selecionados, resultados, relatorio_nome)
+
     return AplicarResponse(
         resultados=[
             ExecutionResultResponse(
@@ -146,6 +149,7 @@ async def aplicar_stream(body: AplicarRequest, _: str = Depends(get_current_user
         if body.gerar_relatorio:
             pdf_path, _, _ = await asyncio.to_thread(gerar_relatorio, resultados, ARQUIVO_ROUTERS)
             relatorio_nome = Path(pdf_path).name
+        await asyncio.to_thread(salvar_sessao, body.sessao, routers_selecionados, resultados, relatorio_nome)
         done_event = {
             "type": "done",
             "resultados": [dataclasses.asdict(r) for r in resultados],

@@ -26,6 +26,12 @@ export default function Layout({ children }) {
             Roteadores
           </NavLink>
           <NavLink
+            to="/historico"
+            className={({ isActive }) => (isActive ? styles.active : "")}
+          >
+            Histórico
+          </NavLink>
+          <NavLink
             to="/relatorios"
             className={({ isActive }) => (isActive ? styles.active : "")}
           >

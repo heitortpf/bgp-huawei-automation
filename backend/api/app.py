@@ -9,7 +9,7 @@ from bgp.exceptions import (
     RouterInventoryError,
     UserCancelledError,
 )
-from api.routers import auth, sessao, roteadores, relatorios
+from api.routers import auth, sessao, roteadores, relatorios, historico
 
 app = FastAPI(
     title="BGP Huawei Automation API",
@@ -55,3 +55,4 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(sessao.router, prefix="/api/sessao", tags=["Sessão BGP"])
 app.include_router(roteadores.router, prefix="/api/roteadores", tags=["Roteadores"])
 app.include_router(relatorios.router, prefix="/api/relatorios", tags=["Relatórios"])
+app.include_router(historico.router, prefix="/api/historico", tags=["Histórico"])

@@ -6,6 +6,7 @@ backups/
 logs/
 *.pdf
 log_*.txt
+historico.db
 
 # Node / frontend
 frontend/node_modules/

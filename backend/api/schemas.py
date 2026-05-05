@@ -96,3 +96,15 @@ class RouterOut(BaseModel):
 class PrefixosResponse(BaseModel):
     ipv4: list[str]
     ipv6: list[str]
+
+
+class HistoricoItemResponse(BaseModel):
+    id: int
+    timestamp: str
+    nome_cliente: str
+    neighbor_ip: str
+    local_as: int
+    neighbor_as: int
+    roteadores: list[str]
+    resultados: list[ExecutionResultResponse]
+    relatorio_nome: str | None

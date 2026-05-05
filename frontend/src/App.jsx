@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import CriarSessao from "./pages/CriarSessao";
 import Roteadores from "./pages/Roteadores";
 import Relatorios from "./pages/Relatorios";
+import Historico from "./pages/Historico";
 
 export default function App() {
   return (
@@ -39,6 +40,16 @@ export default function App() {
               <PrivateRoute>
                 <Layout>
                   <Relatorios />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/historico"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <Historico />
                 </Layout>
               </PrivateRoute>
             }
